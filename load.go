@@ -91,7 +91,7 @@ func parseFile(data string) error {
 }
 
 func processItem(item string) error {
-	lines := strings.Split(item, "\n")
+	lines := strings.Split(strings.TrimSpace(item), "\n")
 	request, err := extractHTTPRequestData(lines[0])
 	if err == nil {
 		responseStartLine, err := findResponseStartLine(lines)
