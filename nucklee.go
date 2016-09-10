@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -24,36 +25,41 @@ type responseData struct {
 var cache = make(map[requestData]responseData)
 var lineBreak = "##"
 
-// Main function only for testing. This should be testing Load()
 func main() {
-	projectPath := argParser()
+	projectPath, port := argParser()
 	Load(projectPath)
 
 	if len(cache) == 0 {
 		return
 	}
 
-	fmt.Println(cache)
+	fmt.Printf("Serving %d cached requests from %s on Port #%d.\n", len(cache), projectPath, port)
 
 	http.HandleFunc("/", handler)
-	log.Fatal(http.ListenAndServe(":12345", nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
+}
+
+func argParser() (string, int) {
+	port := flag.Int("port", 12345, "Specify the port where you want to host nucklee.")
+	path := flag.String("path", "/usr/local/nucklee", "Directory where all request files are stored.")
+	flag.Parse()
+
+	return *path, *port
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	var request = new(requestData)
 	request.url = r.URL.Path
 	request.method = r.Method
-	fmt.Fprintf(w, "URL: %s, Response: %s", r.URL.Path, cache[*request])
+	sendResponse(*request, w)
 }
 
-func argParser() string {
-	args := os.Args
-	defaultpath := "/usr/local/nucklee"
-	if len(args) >= 2 {
-		return args[1]
+func sendResponse(request requestData, w http.ResponseWriter) {
+	response := cache[request]
+	for key, value := range response.headers {
+		w.Header().Set(key, value)
 	}
-
-	return defaultpath
+	w.Write([]byte(response.body))
 }
 
 // Load function loads all the valid http files from the project path and
