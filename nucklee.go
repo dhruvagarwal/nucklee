@@ -63,7 +63,7 @@ func sendResponse(request requestData, w http.ResponseWriter) {
 }
 
 // Load function loads all the valid http files from the project path and
-// stores the serialized object.
+// caches them.
 func Load(projectPath string) error {
 	err := filepath.Walk(projectPath, processPath)
 	return err
