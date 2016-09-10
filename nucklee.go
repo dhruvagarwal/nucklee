@@ -11,104 +11,82 @@ import (
 	"strings"
 )
 
-type CurlData struct {
-	url          string
-	method       string
-	responseBody string
+type requestData struct {
+	url    string
+	method string
 }
 
+type responseData struct {
+	headers map[string]string
+	body    string
+}
+
+var cache = make(map[requestData]responseData)
+var lineBreak = "##"
+
+// Main function only for testing. This should be testing Load()
 func main() {
-	command, payload := argParser()
-	dispatch(command, payload)
-}
+	projectPath := argParser()
+	Load(projectPath)
 
-// argParser gets arguments passed to commnd line and returns two strings
-// the first string is the <command> and the second string is the <payload>
-// the grammar is nucklee <command> <payload> where <payload> is optional
-func argParser() (string, string) {
-	args := os.Args
-	if len(args) >= 3 {
-		return args[1], args[2]
+	if len(cache) == 0 {
+		return
 	}
-	if len(args) == 2 {
-		return args[1], ""
-	}
-	if len(args) == 1 {
-		return "", ""
-	}
-	return "", ""
-}
 
-//dispatch parses arguments to invoke the correct functionality
-func dispatch(command, payload string) {
-	command = strings.ToLower(command)
-	if command == "start" {
-		if payload == "" {
-			log.Println("No curl repository specified, using current dir")
-			payload = "."
-		}
-		start(payload)
-	} else if command == "stop" {
-		stop()
-	} else if command == "" {
-		nothing()
-	} else if command != "" {
-		unknown()
-	} else {
-		panic("Unknown condition")
-	}
+	fmt.Println(cache)
+
+	http.HandleFunc("/", handler)
+	log.Fatal(http.ListenAndServe(":12345", nil))
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hi love %s", r.URL.Path[1:])
+	var request = new(requestData)
+	request.url = r.URL.Path
+	request.method = r.Method
+	fmt.Fprintf(w, "URL: %s, Response: %s", r.URL.Path, cache[*request])
 }
 
-func start(dir string) {
-	cfs := filterCurlFiles(dir)
-	cache := buildCache(cfs)
-
-	if len(cache) > 0 {
-		log.Println("cache", len(cache))
-		http.HandleFunc("/", handler)
-		log.Fatal(http.ListenAndServe(":12345", nil))
-	}
-}
-
-func stop() {
-	log.Println("Stop")
-}
-
-func nothing() {
-	log.Println("Nothing to do")
-}
-
-func unknown() {
-	log.Println("Unknown command")
-}
-
-func filterCurlFiles(dir string) []string {
-	curlFiles := make([]string, 0)
-
-	isCurlFile := func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !fi.IsDir() && strings.HasSuffix(fi.Name(), ".curl") {
-			fp, _ := filepath.Abs(filepath.Dir(path) + "/" + fi.Name())
-			curlFiles = append(curlFiles, fp)
-		}
-		return nil
+func argParser() string {
+	args := os.Args
+	defaultpath := "/usr/local/nucklee"
+	if len(args) >= 2 {
+		return args[1]
 	}
 
-	err := filepath.Walk(dir, isCurlFile)
-	check(err)
-	return curlFiles
+	return defaultpath
 }
 
-func check(e error) {
-	if e != nil {
-		panic(e)
+// Load function loads all the valid http files from the project path and
+// stores the serialized object.
+func Load(projectPath string) error {
+	err := filepath.Walk(projectPath, processPath)
+	return err
+}
+
+func processPath(path string, pathInfo os.FileInfo, _ error) error {
+	if !pathInfo.IsDir() && isHTTPFile(pathInfo.Name()) {
+		cacheRequests(path)
 	}
+	return nil
+}
+
+func isHTTPFile(fileName string) bool {
+	return strings.HasSuffix(fileName, ".http")
+}
+
+func getHTTPMethod(fileName string) (string, error) {
+	if fileName[:len(fileName)-5] == "" {
+		return "", errors.New("Invalid File Name")
+	}
+
+	return fileName[:len(fileName)-5], nil
+}
+
+func cacheRequests(path string) error {
+	contents := readFile(path)
+	err := parseFile(contents)
+
+	return err
 }
 
 func readFile(fpath string) string {
@@ -117,79 +95,84 @@ func readFile(fpath string) string {
 	return string(bytes)
 }
 
-func extractHTTPURL(curlLine string) (string, error) {
-	searchPhrase := "Rebuilt URL to:"
-	i := strings.Index(curlLine, searchPhrase)
-	if i > -1 {
-		i = i + len(searchPhrase)
-		return strings.TrimSpace(curlLine[i:]), nil
-	} else {
-		return "", errors.New("No URL found")
+func parseFile(data string) error {
+	items := strings.Split(data, lineBreak)
+	for i := 0; i < len(items); i++ {
+		err := processItem(items[i])
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
+}
+
+func processItem(item string) error {
+	lines := strings.Split(strings.TrimSpace(item), "\n")
+	request, err := extractHTTPRequestData(lines[0])
+	if err == nil {
+		responseStartLine, err := findResponseStartLine(lines)
+		if err == nil {
+			response, err := getResponse(lines[responseStartLine:])
+			if err == nil {
+				cache[*request] = *response
+				return nil
+			}
+		}
+	}
+	return err
+}
+
+func extractHTTPRequestData(requestLine string) (*requestData, error) {
+	request := new(requestData)
+	requestPieces := strings.Split(requestLine, " ")
+	if len(requestPieces) == 3 {
+		request.method = requestPieces[0]
+		request.url = requestPieces[1]
+
+		return request, nil
+	}
+
+	return request, errors.New("No URL found")
 }
 
 func findResponseStartLine(lines []string) (int, error) {
 	for i, l := range lines {
 		l = strings.TrimSpace(l)
-		if len(l) == 1 && l == "<" {
+		if strings.HasPrefix(l, "HTTP") {
 			return i, nil
 		}
 	}
 	return -1, errors.New("No response found")
 }
 
-func findHTTPMethod(lines []string) (string, error) {
-	for _, l := range lines {
-		if strings.HasPrefix(l, ">") {
-			words := strings.Split(l, " ")
-			return words[1], nil
+func getResponse(responseLines []string) (*responseData, error) {
+	headers := make(map[string]string)
+	var i int
+	response := new(responseData)
+
+	for i = 2; i < len(responseLines); i++ {
+		responseLines[i] = strings.TrimSpace(responseLines[i])
+		if responseLines[i] == "" {
+			break
 		}
+
+		header := strings.Split(responseLines[i], ": ")
+		if len(header) != 2 {
+			return response, errors.New("Invalid herader")
+		}
+
+		headers[header[0]] = header[1]
 	}
-	return "", errors.New("HTTP Method not found")
+
+	response.headers = headers
+	response.body = strings.Join(responseLines[i:], "\n")
+
+	return response, nil
 }
 
-func hasBodySize(line string) bool {
-	line = strings.TrimSpace(line)
-	if strings.HasPrefix(line, "{") && strings.HasSuffix(line, "]") {
-		return true
+func check(e error) {
+	if e != nil {
+		panic(e)
 	}
-	return false
-}
-
-func parseFile(data string) (*CurlData, error) {
-	var cd CurlData
-	lines := strings.Split(data, "\n")
-	url, err := extractHTTPURL(lines[0])
-	if err == nil {
-		log.Println(url)
-		cd := new(CurlData)
-		cd.url = url
-		httpMethod, err := findHTTPMethod(lines)
-		cd.method = httpMethod
-		if err == nil {
-			responseStartLine, err := findResponseStartLine(lines)
-			if err == nil {
-				response := lines[responseStartLine+1:]
-				if hasBodySize(response[0]) {
-					response = response[1:]
-					cd.responseBody = strings.Join(response, "\n")
-				}
-				return cd, nil
-			}
-		}
-	}
-	return &cd, err
-}
-
-func buildCache(files []string) map[string]*CurlData {
-	cache := make(map[string]*CurlData)
-	for _, fp := range files {
-		s := readFile(fp)
-		cd, err := parseFile(s)
-		if err == nil {
-			log.Println(cd.url, len(cd.responseBody))
-			cache[cd.url] = cd
-		}
-	}
-	return cache
 }
