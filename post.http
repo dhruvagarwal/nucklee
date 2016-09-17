@@ -1,0 +1,50 @@
+POST /api/api_post.php HTTP/1.1
+Accept: */*
+User-Agent: HTTPie/0.9.4
+Content-Type: application/x-www-form-urlencoded; charset=utf-8
+Connection: keep-alive
+Accept-Encoding: gzip, deflate
+Content-Length: 84
+Host: pastebin.com
+
+api_option=paste&api_dev_key=1ff7c470c33bd2f7003aa7b922903690&api_paste_code=Testing
+
+HTTP/1.1 200 OK
+Date: Mon, 05 Sep 2016 11:17:11 GMT
+Content-Type: text/html
+Transfer-Encoding: chunked
+Connection: keep-alive
+Set-Cookie: __cfduid=d880b47084ac3a0356b507023a25836e71473074231; expires=Tue, 05-Sep-17 11:17:11 GMT; path=/; domain=.pastebin.com; HttpOnly
+Vary: Accept-Encoding
+X-Powered-By: PHP/5.5.5
+Content-Encoding: gzip
+Server: cloudflare-nginx
+CF-RAY: 2dd945f80f0907ff-SIN
+
+http://pastebin.com/fbWipYb4
+
+##
+POST /api/api_post1.php HTTP/1.1
+Connection: keep-alive
+Content-Type: application/x-www-form-urlencoded; charset=utf-8
+Content-Length: 84
+User-Agent: HTTPie/0.9.4
+Host: pastebin.com
+Accept: */*
+Accept-Encoding: gzip, deflate
+
+api_option=paste&api_dev_key=1ff7c470c33bd2f7003aa7b922903690&api_paste_code=Testing
+
+HTTP/1.1 200 OK
+Date: Wed, 07 Sep 2016 12:25:16 GMT
+Content-Type: text/html
+Transfer-Encoding: chunked
+Connection: keep-alive
+Set-Cookie: __cfduid=d6123298e2e844d8f2055948e3d0213da1473251115; expires=Thu, 07-Sep-17 12:25:15 GMT; path=/; domain=.pastebin.com; HttpOnly
+Vary: Accept-Encoding
+X-Powered-By: PHP/5.5.5
+Content-Encoding: gzip
+Server: cloudflare-nginx
+CF-RAY: 2dea24727538113b-SIN
+
+http://pastebin.com/6e8c0R3V

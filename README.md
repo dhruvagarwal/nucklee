@@ -1,7 +1,11 @@
+##NUCKLEE
+A mocking service for APIs. You provide a requests file in the format of `httpie` and this service will mock those requests(url, method) and return the stored response(in the http requests file).
 
-curl -vs man.cx > test/a.curl 2>&1
-sed -i ``
+How to run
+===========
 
+    cd $GOPATH/src/github.com/dhruvagarwal/nucklee
+    go run nucklee.go -path . -port 12345
 
 Future Scope
 * Allow request headers to decide response
